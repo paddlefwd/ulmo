@@ -292,3 +292,6 @@ def _get_client(wsdl_url, cache_duration=("default",)):
                 cache.setduration(**dict([cache_duration]))
 
     return _suds_client
+
+if __name__ == '__main__':
+    s = get_sites('http://hydroportal.cuahsi.org/muddyriver/cuahsi_1_0.asmx?WSDL')

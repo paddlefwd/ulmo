@@ -10,6 +10,7 @@ from __future__ import (absolute_import, division, print_function)
 __version__ = '0.8.2-dev'
 
 from . import cdec
+from . import codwr
 from . import cpc
 from . import cuahsi
 from . import twc
