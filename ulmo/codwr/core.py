@@ -42,27 +42,39 @@ CODWR_SERVICE_URL = "http://= www.dwr.state.co.us/SMS_WebService/ColoradoWaterSM
 # The global SUDS client - do not remove or change!
 _suds_client = None
 
-def get_water_district(div=0, wd=0, use_pandas=True, suds_cache=None):
-    """ Fetches the list of water divisions/districts matching the search
-    criteria available from the Co. DWR site.
+
+def get_water_district(div=0, wd=0, as_dataframe=False, suds_cache=None):
+    """ Fetches the list of water divisions/districts matching the
+    search criteria available from the Co. DWR site.
 
 
     Parameters
     ----------
-    div         list of divisions to retrieve, default 0 (all divisions)
-    wd          list of water districts to retrieve, default 0 (all districts)
-    use_pandas  boolean indicating whether to return results as a Pandas data
+    div : ``None`` or list of int
+        If specified, the list of divisions to retrieve (0 or ``None""
+        retrieve all divisions).
+    wd : ''None`` or list of int or str
+        If specified, the list of water districts to retrieve (0 or
+        ``None`` retrieve all districts).
+        Specifying a district(s) narrow the CoDWR search to retrieve
+        only the specified districts within the specified division(s).
+        Water districts may be provided as (partial) strings - i.e.
+        "platte" would get all Platter River districts in the division(s).
+        List may contain either int or str types but must be homogeneous.
+    as_dataframe : boolean
+        Indicating whether to return results as a Pandas data
                 frame, default True
     suds_cache  Cache for SUDS SOAP service, default none
 
     Note that water district list can be retrieved either by number or (partial) name.
     I.e. wd=[1,2,5] would retrieve water districts 1, 2, and 5 while wd='platte'
-     would retrieve all districts with "Platte" in their name.
+    would retrieve all districts with "Platte" in their name.
 
     Returns
     -------
     Data frame or list of matching water districts
     """
+
     def district_matches(tgt):
         # Check if the target water district matches the search criteria
         # need to handle both ints and strings (including partial matches)
@@ -80,9 +92,7 @@ def get_water_district(div=0, wd=0, use_pandas=True, suds_cache=None):
 
     # ensure wd is a homogeneous list of either int ot str
     if type(wd) is not list: wd = [wd]
-    assert type(wd[0]) in [int,str]
-    assert all(type(w) is type(wd[0]) for w in wd)
-
+    assert type(wd[0]) in [int, str] and all(type(w) is type(wd[0]) for w in wd)
 
     # retrieve the list of water districts
     suds_client = _get_client(CODWR_WSDL_URL)
@@ -94,32 +104,31 @@ def get_water_district(div=0, wd=0, use_pandas=True, suds_cache=None):
             wdd = dict(wdx)
             wds.append(wdd)
 
-    if not wds:
-        return None
-
-    if use_pandas:
+    if as_dataframe:
         wds = pd.DataFrame(wds)
-        wds.rename(columns = {'div':'wdiv'}, inplace = True)
-        print(wds.columns)
+        # wds.rename(columns = {'div':'wdiv'}, inplace = True)
 
-    return wds
+    return wds if len(wds) > 0 else None
 
 
-def get_station(div=0, wd=0, abbrev=None, use_pandas=True, input_file=None):
+def get_station(div=0, wd=0, abbrev=None, as_dataframe=False,
+                input_file=None, output_file=None, suds_cache=None):
     """Fetches a list of currently active CoDWR sites by name. If an input file is
     provided the list of site names in the file will be retrieved, otherwise the
     CoDWR web service will be queried.
 
     Parameters
     ==========
-    input_file : ``None`` or a path to file or file object.
-        If ``None`` (default), then the CoDWR webservice is queried. If a file
-        containing previously retrieved CoDWR water data is provided the sites
-        in the file are retrieved.
+    div         : Water division number (default is 0)
+    wd          : Water district number or (partial) name (default is 0)
+    abbrev      : Station code (default is None)
+    as_dataframe  : Return information as a Pandas DataFrame (default is False)
+    input_file  : Path to file or file object (default is None).
+    output_file : Path to output file or file object (default is None).
 
     Returns
     =======
-        site_list : a python list of currently active sites
+        stations : a list of dicts of stations or the equivalent DataFrame
     """
     # ensure div is a list of ints
     if type(div) is not list: div = [div]
@@ -135,23 +144,28 @@ def get_station(div=0, wd=0, abbrev=None, use_pandas=True, input_file=None):
         # use the Co DWR SOAP service
         suds_client = _get_client(CODWR_WSDL_URL)
 
-        if abbrev is None:
-            # we aren't looking for named site(s) so get all sites in div/water dist
-            dists = get_water_district(div, wd, use_pandas=False)
-            if dists is None:
-                # no matching division/district(s)
-                return None
+        # get the water division/districts
+        dists = get_water_district(div, wd, as_dataframe=False, suds_cache=suds_cache)
+        if dists is None:
+            # no matching division/district(s)
+            return None
 
+        if abbrev is None:
             for d in dists:
-                sites = suds_client.service.GetSMSTransmittingStations(d['div'],d['wd'])
+                # get the stations for the division/district
+                sites = suds_client.service.GetSMSTransmittingStations(d['div'], d['wd'])
                 if sites is None:
                     return None
 
-                sparms = suds_client.service.GetSMSTransmittingStationVariables(d['div'],d['wd'])
+                # get the parameters for the stations
+                sparms = suds_client.service.GetSMSTransmittingStationVariables(d['div'], d['wd'])
                 if sparms is None:
                     # hmmm - we have stations but no parameters...
                     raise ValueError("Service returned no parameters for transmitting station(s).")
 
+                # the SOAP service returns each parameter for a station as a
+                # separate row <abbrev, parameter> which we will compact into
+                # a dict {abbrev,[parameter,parameter,...]}
                 params = {}
                 for sp in sparms.StationVariables:
                     spd = dict(sp)
@@ -159,7 +173,9 @@ def get_station(div=0, wd=0, abbrev=None, use_pandas=True, input_file=None):
                         params[spd['abbrev']] = []
                     params[spd['abbrev']].append(spd['variable'])
 
-                stations = []
+                # build up the complete station description (including the water
+                # district name and parameters) and add it to the station list
+                # to the station list
                 for site in sites.Station:
                     sited = dict(site)
                     sited['waterDistrictName'] = d['waterDistrictName']
@@ -168,35 +184,56 @@ def get_station(div=0, wd=0, abbrev=None, use_pandas=True, input_file=None):
 
         else:
             for a in abbrev:
-                ssite = suds_client.service.GetSMSTransmittingStations(Abbrev=a)
-                print(ssite)
+                site = suds_client.service.GetSMSTransmittingStations(0, 0, a)
+                if site is not None:
+                    sited = dict(site)
+
+                    for d in dists:
+                        if d['div'] == sited['div'] and d['wd'] == sited['wd']:
+                            sited['waterDistrictName'] = d['waterDistrictName']
+                            break
+
+                    # retrieve the station parameters and attach them to the
+                    # station information
+                    sparms = suds_client.service.GetSMSTransmittingStationVariables(sited['div'],
+                                                                                    sited['wd'],
+                                                                                    sited['abbrev'])
+                    if sparms is None:
+                        # hmmm - we have stations but no parameters...
+                        raise ValueError("Service returned no parameters for station "
+                                         + sited['abbrev'])
+                    for sp in sparms.StationVariables:
+                        spd = dict(sp)
+                        if sited['parameters'] is None:
+                            sited['parameters'] = []
+                        assert(spd['abbrev'] == sited['abbrev'])
+                        sited['parameters'].append(spd['variable'])
 
     else:
         # retrieve the list of sites in the specified file
         print("Nothing yet")
 
-    if use_pandas is True:
+    if as_dataframe is True:
         stations = pd.DataFrame(stations)
 
-    return stations
+    return stations if len(stations) > 0 else None
 
 
 def _get_client(wsdl_url, cache_duration=("default",)):
     """
-    Open and re-use (persist) a suds.client.Client instance _suds_client throughout
-    the session, to minimize WOF server impact and improve performance.  _suds_client
-    is global in scope.
+    Open and re-use (persist) a suds.client.Client instance _suds_client
+    throughout the session, to minimize WOF server impact and improve
+    performance.  _suds_client is global in scope.
 
     Parameters
     ----------
     wsdl_url : str
-        URL of a service's web service definition language (WSDL) description.
-        All Colorado DWR services publish a WSDL description and this url is the
-        entry point to the service.
+        URL of a service's web service definition language (WSDL).
     cache_duration: ``None`` or tuple
-        suds client local cache duration for WSDL description and client object.
-        Pass a cache duration tuple like ('days', 3) to set a custom duration.
-        Duration may be in months, weeks, days, hours, or seconds.
+        suds client local cache duration for WSDL description and client
+        object. Pass a cache duration tuple like ('days', 3) to set a
+        custom duration. Duration may be in months, weeks, days, hours,
+        or seconds.
         If unspecified, the suds default (1 day) will be used.
         Use ``None`` to turn off caching.
 
@@ -224,7 +261,9 @@ def _get_client(wsdl_url, cache_duration=("default",)):
 
     return _suds_client
 
+
 if __name__ == '__main__':
-    #s = get_water_district(wd='platte')
-    s = get_station(div=2,wd=11,use_pandas=True)
+    # s = get_water_district(wd='platte')
+    # s = get_station(div=2,wd=11,use_pandas=True)
+    s = get_station(abbrev="ARKSALCO")
     print(s)
