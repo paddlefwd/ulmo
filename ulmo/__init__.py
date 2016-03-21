@@ -7,7 +7,7 @@
 from __future__ import (absolute_import, division, print_function)
 
 # ulmo version PEP-0440
-__version__ = '0.8.2-dev'
+__version__ = '0.8.3dev'
 
 from . import cdec
 from . import codwr
@@ -18,3 +18,4 @@ from . import ncdc
 from . import usace
 from . import usgs
 from . import util
+from . import lcra
