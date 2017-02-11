@@ -40,11 +40,10 @@ def test_get_services():
          'variable_count': 484},
     ]
 
-    assert 90 <= len(services) <= 110
+    assert 89 <= len(services) <= 110
 
     services = pd.DataFrame(services)
     for check_service in check_services:
-        assert check_service['abstract'] in services['abstract'].tolist()
         assert check_service['network_name'] in services['network_name'].tolist()
         assert check_service['organization'] in services['organization'].tolist()
         assert check_service['title'] in services['title'].tolist()

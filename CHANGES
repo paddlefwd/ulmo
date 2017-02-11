@@ -1,5 +1,26 @@
 Changelog
 ---------
+
+**0.8.4 (release 2017-02-06)**
+
+- added stevens dual well parser for eddn service
+- bugfixes for twc-kbdi service
+- optimize dict to dataframe conversion. This speeds up ncdc-ghcn by 10x
+
+**0.8.3.2 (released 2016-08-12)**
+
+- Fixed USGS NED services. Server changed spatial query format.
+
+**0.8.3.1 (release 2016-07-18)**
+
+- corrected install documentation
+
+**0.8.3 (released 2016-07-18)**
+
+- added Nasa Daymet weather data module, thanks to ColinTalbert
+- multiple bug fixes
+- improvements to installation and continuous integration testing
+
 **0.8.2 (released 2016-02-02)**
 
 - added modules for getting LCRA hydromet and water quality data
@@ -195,12 +216,10 @@ Changelog
 - moved module for WaterOneFlow from ulmo.wof -> ulmo.cuahsi.wof
 
 
-
 **0.2.4 (released 2013-01-14)**
 
 - core API functions can be called from main dataset modules
 - support python 2.6
-
 
 
 **0.2.3 (released 2013-01-13)**
@@ -213,18 +232,15 @@ Changelog
   disabled if pytables can't be found
 
 
-
 **0.2.2 (released 2012-11-05)**
 
 - bugfix: broken usgs.pytables last_refresh handling
-
 
 
 **0.2.1 (released 2012-11-04)**
 
 - turn on compression for pytables cache files
 - minor bugfix and test cleanup
-
 
 
 **0.2.0 (released 2012-10-12)**
